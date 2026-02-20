@@ -1,253 +1,284 @@
+/*
+ * Carte 2W - CardV2 Flex Sensor Version
+ * 
+ * MODIFICATIONS vs version originale (31_07_2025.ino):
+ * - Capteur HES (effet Hall) REMPLACÉ par capteur Flex résistif Johnson Electric
+ * - Lecture Analogique (analogRead) au lieu d'interruption
+ * - Interface simplifiée : 2 boutons seulement (UP / DOWN)
+ * - Calibration : positions haute/basse mémorisées par lecture analogique
+ * - FRAM conservée pour sauvegarder position
+ * 
+ * BROCHAGE:
+ *   Motor   : enA=9, in1=11, in2=12
+ *   Bouton UP   : A3  (comme avant)
+ *   Bouton DOWN : A2  (comme avant)
+ *   Capteur Flex: A1  (NOUVEAU - diviseur de tension 220Ω/Sensor)
+ *   Power sense : 5   (inchangé)
+ *   LED         : 6   (inchangé)
+ *   FRAM (I2C)  : SDA=A4, SCL=A5 via Wire.h
+ */
+
 #include <Wire.h>
 
-#define FRAM_ADDR 0x50  // Replace with the actual I2C address of your FRAM device
-// addresss : current position =0, pos_f =1, position1 =2, position2 =3
-int values[5];          // Array to store 5 integer values
-const int enA = 9;
-const int in1 = 11;                                                      
-const int in2 = 12;
-const int buttonPin1 = A3;
-const int buttonPin2 = A2;
-const int buttonPin3 = A0;
-const int buttonPin4 = 13;
-const int powerPin = 5;
-const int HESPin = 2;
-const int ledpp2 = 6;
+// ─── ADRESSE FRAM ───────────────────────────────────────────────────────────
+#define FRAM_ADDR 0x50
+// Addresses FRAM: [0]=flag init, [1]=position_raw, [2]=pos_f_raw, [3]=pos1_raw, [4]=pos2_raw
 
+// ─── PINS ────────────────────────────────────────────────────────────────────
+const int enA        = 9;
+const int in1        = 11;
+const int in2        = 12;
+const int btnUp      = A3;   // Bouton UP (flèche vers le haut)
+const int btnDown    = A2;   // Bouton DOWN (flèche vers le bas)
+const int flexPin    = A1;   // Capteur Flex (nouveau)
+const int powerPin   = 5;    // Détection coupure alimentation
+const int ledPin     = 6;
 
-int speed_DC = 255;
-int buttonState1 = 0;
-int buttonState2 = 0;
-int buttonState3 = 0;
-int buttonState4 = 0;
-int powerState = 1;
-int sum = 50;
-int i=1;
-int j=1;
-int pos_f=0;
-volatile int position = 0;
-unsigned long LastTimeChange = 0;
-int HES = 0;
-int PHES = 0;
+// ─── PARAMÈTRES CAPTEUR FLEX ────────────────────────────────────────────────
+// Calibration à faire une première fois : noter les valeurs ADC en position
+// haute (FLEX_MIN) et basse (FLEX_MAX) du moteur.
+// Le capteur lit entre 0 et 1023 (10-bit ADC).
+#define FLEX_MIN  50     // Valeur ADC en position haute (ajuster après test)
+#define FLEX_MAX  900    // Valeur ADC en position basse (ajuster après test)
+#define FLEX_DEADBAND 5  // Tolérance pour considérer qu'on est arrivé à destination
 
-int pos1=0;
-int pos2=0;
-int flaginit =0;
+// ─── VITESSE MOTEUR ─────────────────────────────────────────────────────────
+int motor_speed = 200; // PWM 0-255
 
-boolean Moving = false;
-volatile boolean dir_up = false;
-volatile boolean dir_down = false;
-unsigned long buttonPressTime = 0;
-boolean button3Pressed = false;
-boolean button4Pressed = false;
+// ─── ÉTATS ──────────────────────────────────────────────────────────────────
+int values[5];   // [0]=flag, [1]=pos_raw, [2]=pos_f_raw, [3]=pos1_raw, [4]=pos2_raw
 
+int pos_f  = FLEX_MAX;  // Fin de course analogique
+int pos1   = -1;        // Position mémorisée 1 (plus utilisée par bouton, gardée FRAM)
+int pos2   = -1;        // Position mémorisée 2
 
+// Lecture boutons
+int stUp   = 0;
+int stDown = 0;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SETUP
+// ─────────────────────────────────────────────────────────────────────────────
 void setup() {
-  sei();
-  attachInterrupt(digitalPinToInterrupt(2), rotation, RISING);
+  Serial.begin(115200);
+
   Wire.begin();
-  pinMode(enA, OUTPUT);
-  pinMode(in1, OUTPUT);
-  pinMode(in2, OUTPUT);
-  pinMode(ledpp2, OUTPUT);
-  pinMode(buttonPin1, INPUT);
-  pinMode(buttonPin2, INPUT);
-  pinMode(buttonPin3, INPUT);
-  pinMode(buttonPin4, INPUT);
+
+  pinMode(enA,      OUTPUT);
+  pinMode(in1,      OUTPUT);
+  pinMode(in2,      OUTPUT);
+  pinMode(ledPin,   OUTPUT);
+  pinMode(btnUp,    INPUT);
+  pinMode(btnDown,  INPUT);
   pinMode(powerPin, INPUT);
-  pinMode(HESPin, INPUT);
-  motor_command(2,0);
+  pinMode(flexPin,  INPUT);
+
+  motor_stop();
   delay(200);
+
+  // Lecture FRAM
   readValuesFromFRAM();
-  if (values[0] != 50){init_position(); } else {readValuesFromFRAM();}
-  position=values[1];
-  pos_f=values[2];
-  pos1=values[3];
-  pos2=values[4];
+  if (values[0] == 50) {
+    // Données valides en mémoire
+    pos_f = values[2];
+    pos1  = values[3];
+    pos2  = values[4];
+    Serial.println("[INIT] FRAM ok. Positions restaurees.");
+  } else {
+    // Première mise en route : calibration auto
+    Serial.println("[INIT] Premiere mise en route. Calibration...");
+    calibrate();
+  }
 
-
+  // Affiche les valeurs au démarrage sur Serial
+  Serial.print("[FLEX] Position initiale: ");
+  Serial.println(readFlex());
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LOOP
+// ─────────────────────────────────────────────────────────────────────────────
 void loop() {
-  powerState = digitalRead(powerPin);
-  if (powerState ==LOW){
-    values[1]=position;
-    values[2]=pos_f;
-    values[3]=pos1;
-    values[4]=pos2;
-    
-    
+
+  // Sauvegarde sur coupure d'alimentation
+  if (digitalRead(powerPin) == LOW) {
+    int curPos = readFlex();
+    values[1] = curPos;
+    values[2] = pos_f;
+    values[3] = pos1;
+    values[4] = pos2;
+    storeValuesInFRAM(values);
+    Serial.println("[POWER] Sauvegarde FRAM avant extinction.");
+    delay(800);
+  }
+
+  stUp   = digitalRead(btnUp);
+  stDown = digitalRead(btnDown);
+
+  int curPos = readFlex();
+
+  // Bouton UP (monter = diminuer la valeur ADC vers FLEX_MIN)
+  if (stUp == HIGH && stDown == LOW) {
+    if (curPos > FLEX_MIN) {
+      motor_up();
+    } else {
+      motor_stop();
+    }
+  }
+  // Bouton DOWN (descendre = augmenter la valeur ADC vers FLEX_MAX)
+  else if (stDown == HIGH && stUp == LOW) {
+    if (curPos < pos_f) {
+      motor_down();
+    } else {
+      motor_stop();
+    }
+  }
+  // Aucun bouton : arrêt
+  else {
+    motor_stop();
+  }
+
+  // Debug Serial (à commenter en production)
+  Serial.print("Flex ADC: ");
+  Serial.print(curPos);
+  Serial.print("  |  BtnUp: ");
+  Serial.print(stUp);
+  Serial.print("  BtnDown: ");
+  Serial.println(stDown);
+
+  delay(50);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LECTURE CAPTEUR FLEX (moyenne sur 5 échantillons pour stabilité)
+// ─────────────────────────────────────────────────────────────────────────────
+int readFlex() {
+  long sum = 0;
+  for (int i = 0; i < 5; i++) {
+    sum += analogRead(flexPin);
+    delay(2);
+  }
+  return (int)(sum / 5);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DÉPLACEMENT VERS POSITION CIBLE (boucle fermée sur capteur Flex)
+// ─────────────────────────────────────────────────────────────────────────────
+void goTo(int target) {
+  int cur = readFlex();
+  unsigned long start = millis();
+
+  while (abs(cur - target) > FLEX_DEADBAND) {
+    cur = readFlex();
+
+    if (cur > target) {
+      motor_up();    // Diminuer ADC -> monter
+    } else {
+      motor_down();  // Augmenter ADC -> descendre
+    }
+
+    // Timeout sécurité 10 secondes
+    if (millis() - start > 10000) {
+      Serial.println("[WARN] Timeout deplacement!");
+      break;
+    }
+    delay(20);
+  }
+  motor_stop();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CALIBRATION AUTO (trouver pos_f = fin de course basse)
+// ─────────────────────────────────────────────────────────────────────────────
+void calibrate() {
+  // Monter jusqu'à la butée haute (valeur ADC stable)
+  Serial.println("[CAL] Montee vers butee haute...");
+  int prev = readFlex();
+  motor_up();
+  delay(500);
+  unsigned long t = millis();
+  while (millis() - t < 5000) {
+    int cur = readFlex();
+    if (abs(cur - prev) < 2) break;  // Plus de mouvement = butée
+    prev = cur;
+    delay(200);
+  }
+  motor_stop();
+  delay(500);
+  int highPos = readFlex();
+  Serial.print("[CAL] Butee haute: "); Serial.println(highPos);
+
+  delay(500);
+
+  // Descendre jusqu'à la butée basse
+  Serial.println("[CAL] Descente vers butee basse...");
+  prev = readFlex();
+  motor_down();
+  delay(500);
+  t = millis();
+  while (millis() - t < 10000) {
+    int cur = readFlex();
+    if (abs(cur - prev) < 2) break;
+    prev = cur;
+    delay(200);
+  }
+  motor_stop();
+  delay(500);
+  pos_f = readFlex();
+  Serial.print("[CAL] Butee basse (pos_f): "); Serial.println(pos_f);
+
+  // Sauvegarde FRAM
+  values[0] = 50;       // Flag "calibré"
+  values[1] = pos_f;    // Position actuelle
+  values[2] = pos_f;    // Fin de course
+  values[3] = highPos;  // pos1 = butée haute
+  values[4] = pos_f;    // pos2 = butée basse
   storeValuesInFRAM(values);
-
-  delay(1000); // Optional delay to avoid multiple consecutive storages
-  }
-  buttonState1 = digitalRead(buttonPin1);
-  buttonState2 = digitalRead(buttonPin2);
-  buttonState3 = digitalRead(buttonPin3);
-  if (buttonState1 == 1 && buttonState2 == 1 ) {                                               
-    init_position();
-   }
-  if (buttonState2 == 1 && position<pos_f) {                                               
-    motor_command(0,speed_DC);
-   }
-  if (buttonState1 == 1 && position>0) {                                               
-    motor_command(1,speed_DC);
-   }
-  if((buttonState1 == 0 && buttonState2 == 0) || (position<=0 && buttonState1 == 1) || (position >= pos_f && buttonState2 == 1)) {motor_command(2,0);
-  }
-
-  if (buttonState3 == 1) {
-    if (!button3Pressed) {
-      // Button 3 is pressed for the first time
-      buttonPressTime = millis();
-      button3Pressed = true;
-    }
-
-    // Check if the button has been pressed for 3 seconds
-    if (millis() - buttonPressTime >= 3000) {
-      displacement(speed_DC, position - 10);
-      displacement(speed_DC, position + 10);
-      pos1 = position;
-      delay(500);
-    }
-  } else {
-    // Button 3 is not pressed
-    if (button3Pressed) {
-      // Button 3 was released, so execute instruction A
-      displacement(speed_DC, pos1);
-      delay(500);
-      button3Pressed = false;
-    }
-  }
-
-  if (buttonState4 == 1) {
-    if (!button4Pressed) {
-      // Button 4 is pressed for the first time
-      buttonPressTime = millis();
-      button4Pressed = true;
-    }
-
-    // Check if the button has been pressed for 3 seconds
-    if (millis() - buttonPressTime >= 3000) {
-      displacement(speed_DC, position - 10);
-      displacement(speed_DC, position + 10);
-      pos2 = position;
-      delay(500);
-    }
-  } else {
-    // Button 4 is not pressed
-    if (button4Pressed) {
-      // Button 4 was released, so execute instruction B
-      displacement(speed_DC, pos2);
-      delay(500);
-      button4Pressed = false;
-    }
-  }
+  Serial.println("[CAL] Calibration terminee et sauvegardee.");
 }
 
-
-void motor_command(int motor_way,int motor_speed)
-{
-  if (motor_way == 1) {
-    dir_down=false;
-    dir_up=true;
-    digitalWrite(in2, HIGH);
-    digitalWrite(in1, LOW);
-  }
-  if (motor_way == 0) {
-    dir_up=false;
-    dir_down=true;
-    digitalWrite(in2, LOW);
-    digitalWrite(in1, HIGH);
-  }
-  if (motor_way == 2){analogWrite(enA,0);digitalWrite(in2, LOW);digitalWrite(in1, LOW);}
-  analogWrite(enA,motor_speed);
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMANDES MOTEUR
+// ─────────────────────────────────────────────────────────────────────────────
+void motor_up() {
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
+  analogWrite(enA, motor_speed);
 }
 
-void displacement(int sp, int disp_pos)                                                                         // sp = speed of displacement  & disp_pos = position to go
-{                                                                                                                                    // determine way of motor
-    while (position<disp_pos){
-    motor_command(0,sp);
-    }
-    motor_command(2,0);
-    
-    while (position>disp_pos){
-    motor_command(1,sp);
-    }
-    motor_command(2,0);                                                                                     // stop motor
-  
-    delay(200);                                                                                                   // wait  
+void motor_down() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, HIGH);
+  analogWrite(enA, motor_speed);
 }
 
-void init_position()                                                                                // go down and up to learn stroke
-{                                                                                   
-  motor_command(1,255); 
-  PHES = -1;
-  HES = digitalRead(HESPin);
-  LastTimeChange = millis();
-  while ((millis() - LastTimeChange) <= 500)
-  {HES = digitalRead(HESPin);
-  if (HES != PHES){LastTimeChange = millis();}
-  PHES = HES;
-  }
-  motor_command(2,0);
-  delay(300);  
-  motor_command(0,255);
-  delay(500);
-  motor_command(2,0);
-  delay(1000);
-
-  position=0;
-
-  delay(1000);
-  motor_command(0,255);
-  PHES = -1;
-  HES = digitalRead(HESPin);
-  LastTimeChange = millis();
-  while ((millis() - LastTimeChange) <= 500)
-  {HES = digitalRead(HESPin);
-  if (HES != PHES){LastTimeChange = millis();}
-  PHES = HES;
-  }
-  motor_command(2,0);
-  delay(300);  
-  motor_command(1,255);
-  delay(500);
-  motor_command(2,0);
-  delay(1000);
-  pos_f=position;
-  values[0]=50;                                                                                                                                                                                  
+void motor_stop() {
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  analogWrite(enA, 0);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FRAM : LECTURE / ÉCRITURE
+// ─────────────────────────────────────────────────────────────────────────────
 void storeValuesInFRAM(int data[]) {
   Wire.beginTransmission(FRAM_ADDR);
-  Wire.write(0); // Start writing from address 0
-
-  for (int i = 0; i < 5; ++i) {
-    Wire.write((byte)(data[i] >> 8)); // Write the high byte
-    Wire.write((byte)data[i]);        // Write the low byte
+  Wire.write(0);
+  for (int i = 0; i < 5; i++) {
+    Wire.write((byte)(data[i] >> 8));
+    Wire.write((byte)data[i]);
   }
-
   Wire.endTransmission();
 }
 
 void readValuesFromFRAM() {
   Wire.beginTransmission(FRAM_ADDR);
-  Wire.write(0); // Start reading from address 0
+  Wire.write(0);
   Wire.endTransmission();
-
-  Wire.requestFrom(FRAM_ADDR, 10); // Request 10 bytes (2 bytes for each of the 5 values)
-
-  for (int i = 0; i < 5; ++i) {
-    byte highByte = Wire.read();
-    byte lowByte = Wire.read();
-    values[i] = (highByte << 8) | lowByte;
+  Wire.requestFrom(FRAM_ADDR, 10);
+  for (int i = 0; i < 5; i++) {
+    byte hi = Wire.read();
+    byte lo = Wire.read();
+    values[i] = (hi << 8) | lo;
   }
-}
-
-
-void rotation()
-{
- if (dir_down == true) {position = position+1;}
- if (dir_up == true) {position = position-1;}
 }
