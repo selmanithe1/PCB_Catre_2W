@@ -1,0 +1,30 @@
+Tension d'alimentation du capteur : Paul Dyckes a confirmé que 5 Volts est acceptable pour le capteur flexible de Johnson Electric.
+Spécifications du capteur Flex PCB :
+Le principe est celui en vert : "Track 2" (se réfère à une image non visible).
+Le capteur est de type résistif.
+Il comporte 6 broches (pins) au total.
+Il y a 2 masses (Grounds).
+Il y a 2 broches par capteur résistif, avec une résistance d'environ 15 ohms par capteur.
+Résistance de la piste : Un morceau test de 100 mm de longueur avait une résistance de 12 ohms.
+Connecteur :
+Le connecteur est un FH52K-12(6)SA-1SH(99) HIROSE / HRS, FFC / FPC Board Connector.
+Il doit avoir 6 contacts (la référence complète est 12P6C).
+Sa largeur est de 8,1 mm.
+Projet PCB :
+Laurent GEORGES a acheté le connecteur.
+Il est nécessaire de créer une nouvelle carte PCB pour piloter l'actionneur avec le Flex PCB de Johnson Electric.
+Il faudra également modifier le programme C++ existant.
+Fonctionnalités et Tâches demandées
+Objectif de la fonctionnalité : L'objectif est d'avoir uniquement deux boutons "Up & down" sur AT C229 (se réfère à des images non visibles).
+Tâches pour Mohamed SELMANI :
+Regarder le schéma de la carte 2W (carte existante de Sohaib) et en discuter la semaine suivant le 23 janvier.
+Déterminer si la carte 2W de Sohaib peut être réutilisée.
+Si oui, prévoir de modifier les cartes existantes.
+Déterminer s'il faut modifier le programme de Sohaib.
+Faire le nouveau layout de la carte PCB idéalement la semaine suivant le 30 janvier, afin de pouvoir la commander chez JLCPCB.
+Modifier le programme C++ pour piloter l'actionneur avec le Flex PCB.
+Modification nécessaire (pour Laurent GEORGES) : La carte 2W doit être modifiée pour intégrer les futurs capteurs de Johnson Electric avant de réaliser la carte 4W (prévue en avril).
+
+
+
+
