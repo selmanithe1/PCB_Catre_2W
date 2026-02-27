@@ -1,0 +1,314 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{caption}
+\usepackage{mdframed}
+\geometry{margin=2.5cm}
+\definecolor{bleu}{RGB}{0,70,127}
+\hypersetup{colorlinks=true,linkcolor=bleu,urlcolor=bleu}
+\lstset{language=C++,basicstyle=\ttfamily\small,keywordstyle=\color{bleu}\bfseries,commentstyle=\color{green!50!black}\itshape,numbers=left,numberstyle=\tiny\color{gray},frame=single,breaklines=true,backgroundcolor=\color{gray!8}}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textit{PCB Carte 2W -- Documentation Technique}}
+\lhead{\textit{Tesca Group}}
+\rfoot{\thepage}
+\lfoot{\textit{Rev. 1.0 -- 2025}}
+\titleformat{\section}{\Large\bfseries\color{bleu}}{\thesection}{1em}{}[\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{bleu!80!black}}{\thesubsection}{1em}{}
+\begin{document}
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\Huge\bfseries\color{bleu} Documentation Technique}\\[0.5cm]
+{\huge\bfseries PCB Carte 2W}\\[0.4cm]
+{\Large Pilotage d'actionneur lin\'{e}aire via capteur Flex PCB}\\[1cm]
+\rule{\linewidth}{0.5pt}\\[0.8cm]
+\begin{tabular}{rl}
+\textbf{Projet :} & AT C229 -- Interface 2 boutons Up/Down \\\\
+\textbf{Soci\'{e}t\'{e} :} & Tesca Group \\\\
+\textbf{Auteur :} & Mohamed SELMANI \\\\
+\textbf{Sch\'{e}ma original :} & Sohaib CHELLELI \\\\
+\textbf{Validation capteur :} & Paul Dyckes (Johnson Electric) \\\\
+\textbf{Responsable projet :} & Laurent GEORGES \\\\
+\textbf{Version :} & 1.0 \\\\
+\textbf{Date :} & F\'{e}vrier 2026 \\\\
+\end{tabular}
+\\[1cm]
+\rule{\linewidth}{0.5pt}\\[0.5cm]
+{\small Fabriqu\'{e} chez \textbf{JLCPCB} -- Composants \textbf{LCSC}}
+\vfill
+{\large\itshape Confidentiel -- Usage interne Tesca Group}
+\end{titlepage}
+\tableofcontents
+\newpage
+\section{Pr\'{e}sentation G\'{e}n\'{e}rale du Projet}
+\subsection{Contexte et Objectif}
+La carte \textbf{PCB 2W} est une carte \'{e}lectronique con\c{c}ue pour piloter un \textbf{actionneur lin\'{e}aire motoris\'{e}} utilis\'{e} dans un si\`{e}ge automobile de la gamme \textbf{AT C229} (Tesca Group). Elle assure le contr\^{o}le bidirectionnel du mouvement via deux boutons poussoirs \textit{(Up \& Down)}, et m\'{e}morise la position gr\^{a}ce \`{a} une m\'{e}moire non-volatile (FRAM). Le microcontr\^{o}leur de type \textbf{Arduino} (socket DIP-28) lit les boutons, contr\^{o}le le moteur via un driver en pont en H, et communique avec la m\'{e}moire via le protocole I2C.
+
+\subsection{Architecture Fonctionnelle}
+La carte se d\'{e}compose en \textbf{six blocs fonctionnels} principaux :
+\begin{enumerate}
+\item \textbf{Bloc Alimentation} -- R\'{e}gulation de tension 5V (L7805CDT-TR x2)
+\item \textbf{Bloc Connecteurs d'interface} -- H2 (Moteur), H3 (Alimentation), H4 (Boutons)
+\item \textbf{Bloc Microcontr\^{o}leur} -- Socket ICS-28P (Arduino, SK1)
+\item \textbf{Bloc Driver Moteur} -- L298P (pont en H double, ST Microelectronics)
+\item \textbf{Bloc Capteur / Conditionnement} -- LM741CN + circuit diviseur de tension
+\item \textbf{Bloc M\'{e}moire FRAM} -- FM24CL16B-GTR (Cypress Semiconductor, I2C)
+\end{enumerate}
+\newpage
+\section{Analyse du Sch\'{e}ma \'{E}lectrique}
+\subsection{Bloc 1 -- Alimentation : R\'{e}gulateurs L7805CDT-TR (U2, U3)}
+Le circuit d'alimentation utilise deux r\'{e}gulateurs de tension lin\'{e}aires \textbf{L7805CDT-TR} (ST Microelectronics), en bo\^{\i}tier \textbf{TO-252 (D-PAK)}, pour fournir une tension stabilis\'{e}e de \textbf{+5V DC}.
+\begin{center}
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{R\'{e}f.} & \textbf{Composant} & \textbf{R\^{o}le} \\\\
+\midrule
+U2, U3 & L7805CDT-TR (TO-252) & R\'{e}gulateur lin\'{e}aire +5V, 1A max \\\\
+U7, U8 & SS14HE3\_B/I (SMA) & Diodes Schottky de protection en entr\'{e}e \\\\
+U9, U10 & 220 $\mu$F (CAP SMD) & Condensateurs de d\'{e}couplage en sortie \\\\
+C1, C2 & 10 $\mu$F (CAP SMD) & Condensateurs de filtrage en entr\'{e}e \\\\
+C4 & 1000 $\mu$F (CAP SMD) & Condensateur bulk de stockage d'\'{e}nergie \\\\
+D1 & MM1Z5V1 (SOD-123) & Diode Zener 5,1V -- protection contre surtension \\\\
+D2--D5 & SS34 (SMA) & Diodes Schottky 3A -- protection et redressement \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{description}
+\item[TO-252 / D-PAK] Bo\^{\i}tier CMS avec pad thermique pour dissipation de chaleur.
+\item[R\'{e}gulateur lin\'{e}aire] Maintient une tension de sortie fixe en dissipant l'exc\`{e}s de tension sous forme de chaleur.
+\item[Diode Schottky] Diode \`{a} tr\`{e}s faible tension de seuil ($\approx 0.3$V). Utilis\'{e}e pour la protection contre les inversions de polarit\'{e}.
+\item[Condensateur bulk] Grand condensateur (1000 $\mu$F) qui absorbe les pointes de courant demand\'{e}es par le moteur.
+\item[Diode Zener] Diode qui \'{e}cr\^{e}te les surtensions au-del\`{a} de 5,1V, prot\'{e}geant les composants aval.
+\end{description}
+\subsection{Bloc 2 -- Connecteurs d'Interface (H2, H3, H4)}
+Trois connecteurs \textbf{Header m\^{a}le pas 2,54 mm} assurent la liaison entre la carte PCB et les \'{e}l\'{e}ments externes.
+\begin{center}
+\begin{tabular}{lllp{5cm}}
+\toprule
+\textbf{R\'{e}f.} & \textbf{Nb pins} & \textbf{Nom} & \textbf{Signaux} \\\\
+\midrule
+H3 & 2 broches & Power & Pin 1: VCC $|$ Pin 2: GND \\\\
+H2 & 4 broches & Motor & Pin 1: V+ Moteur $|$ Pin 2: V- Moteur $|$ Pin 3: HES+ $|$ Pin 4: HES- \\\\
+H4 & 6 broches & Buttons & Pin 1: +5V $|$ Pin 2: GND $|$ Pin 3: B1 $|$ Pin 4: B2 $|$ Pin 5: B3 $|$ Pin 6: B4 \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{description}
+\item[Header (Nappe)] Connecteur form\'{e} d'une rang\'{e}e de broches m\'{e}talliques espac\'{e}es de 2,54 mm permettant de relier la carte \`{a} d'autres modules.
+\item[Through-Hole (THT)] Technique de montage o\`{u} les broches traversent le PCB et sont soud\'{e}es du c\^{o}t\'{e} oppos\'{e}. Offre une excellente tenue m\'{e}canique.
+\item[HES] Hall Effect Sensor -- capteur \`{a} effet Hall. D\'{e}tecte la position du moteur via un champ magn\'{e}tique. (Remplac\'{e} par le capteur Flex dans la nouvelle version.)
+\end{description}
+\subsection{Bloc 3 -- Microcontr\^{o}leur : Socket ICS-28P (SK1)}
+Le \textbf{socket ICS-28P} est un support DIP-28 destin\'{e} \`{a} recevoir un microcontr\^{o}leur de type \textbf{Arduino} (ATmega328P). Ce design avec socket permet de retirer et remplacer facilement le microcontr\^{o}leur.
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Signal} & \textbf{Pin Arduino} & \textbf{Destination} \\\\
+\midrule
+SCL & 28 & FRAM FM24CL16B (I2C Clock) \\\\
+SDA & 27 & FRAM FM24CL16B (I2C Data) \\\\
+B1 & 26 & Bouton 1 (via H4) \\\\
+B2 & 25 & Bouton 2 (via H4) \\\\
+B3 & 24 & Bouton 3 (via H4) \\\\
+GND & 22 & Masse commune \\\\
+B4 (A3/UP) & 20 & Bouton UP \\\\
+IN2 & 18 & Driver L298P -- direction moteur \\\\
+IN1 & 17 & Driver L298P -- direction moteur \\\\
+EnA (PWM) & 15 & Driver L298P -- vitesse moteur (PWM) \\\\
+HESPin (A1) & 4 & Entr\'{e}e analogique capteur HES / Flex \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{description}
+\item[DIP-28] Bo\^{\i}tier \`{a} 28 broches en deux rang\'{e}es parall\`{e}les. Ins\'{e}rable dans un socket pour faciliter le remplacement.
+\item[I2C] Bus s\'{e}rie 2 fils (SDA: donn\'{e}es, SCL: horloge). Permet de connecter plusieurs p\'{e}riph\'{e}riques (FRAM, etc.).
+\item[PWM] Modulation de largeur d'impulsion. Contr\^{o}le la vitesse du moteur via le rapport cyclique (0\% = arr\^{e}t, 100\% = pleine vitesse).
+\item[ADC] Convertisseur analogique-num\'{e}rique. Sur l'Arduino, 10 bits : tension 0--5V convertie en valeur 0--1023.
+\end{description}
+\newpage
+\subsection{Bloc 4 -- Driver Moteur : L298P (Pont en H)}
+Le \textbf{L298P} (ST Microelectronics, POWERSO-20) est un \textit{driver} en \textbf{pont en H double} capable de contr\^{o}ler un moteur CC. Il supporte des courants jusqu'\`{a} \textbf{2A par canal} et des tensions jusqu'\`{a} \textbf{46V}.
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{IN1} & \textbf{IN2} & \textbf{Action moteur} \\\\
+\midrule
+HIGH & LOW & Rotation sens 1 (mont\'{e}e) \\\\
+LOW & HIGH & Rotation sens 2 (descente) \\\\
+HIGH & HIGH & Freinage \\\\
+LOW & LOW & Roue libre \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{description}
+\item[Pont en H] Circuit \`{a} 4 transistors permettant d'inverser le sens du courant dans le moteur, donc son sens de rotation.
+\item[POWERSO-20] Bo\^{\i}tier CMS haute puissance \`{a} 20 broches avec pad thermique.
+\item[Diodes de roue libre] Diodes (D2-D5, SS34) en antiparall\`{e}le avec le moteur. Prot\`{e}gent le driver contre les surtensions induites par l'arr\^{e}t brusque du moteur.
+\item[Current Sense] La r\'{e}sistance R3 (180 $\Omega$) mesure le courant moteur via les broches SENSE A/B du L298P.
+\end{description}
+\subsection{Bloc 5 -- Capteur et Conditionnement : LM741CN (U1)}
+Dans la version originale, un \textbf{capteur \`{a} effet Hall (HES)} d\'{e}tecte la position de l'actionneur. Le signal est conditionn\'{e} par un \textbf{LM741CN} (TI, DIP-8) avant lecture par l'Arduino sur la pin A1 (HESPin).
+\begin{description}
+\item[AOP (LM741)] Amplificateur op\'{e}rationnel \`{a} usage g\'{e}n\'{e}ral. Utilis\'{e} ici comme comparateur ou amplificateur du signal capteur.
+\item[Diviseur de tension] R\'{e}seau de deux r\'{e}sistances en s\'{e}rie. $V_{out} = V_{in} \times \frac{R_2}{R_1 + R_2}$. Utilis\'{e} pour adapter le signal du capteur \`{a} la plage ADC de l'Arduino.
+\item[Conditionnement] Ensemble d'op\'{e}rations (amplification, filtrage) pour rendre un signal capteur lisible par l'ADC.
+\end{description}
+\subsection{Bloc 6 -- M\'{e}moire FRAM : FM24CL16B-GTR (U5)}
+La \textbf{FM24CL16B-GTR} (Cypress, SOIC-8) est une m\'{e}moire \textbf{FRAM} de 16 Kbits, non-volatile, accessible via \textbf{I2C} \`{a} l'adresse \texttt{0x50}. Endurance : $10^{14}$ cycles d'\'{e}criture.
+\begin{description}
+\item[FRAM] M\'{e}moire ferro\'{e}lectrique non-volatile. Combine la rapidit\'{e} d'une SRAM et la non-volatilit\'{e} d'une EEPROM.
+\item[Non-volatile] Conserve les donn\'{e}es sans alimentation. Essentiel pour sauvegarder la position du si\`{e}ge lors d'une coupure.
+\end{description}
+\newpage
+\section{Analyse du Layout PCB}
+Le \textbf{layout PCB} d\'{e}finit l'implantation physique des composants et le routage des pistes. La carte CardV2 est con\c{c}ue sur \textbf{EasyEDA} pour fabrication chez \textbf{JLCPCB}.
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Param\`{e}tre} & \textbf{Valeur} \\\\
+\midrule
+Nombre de couches & 2 (double face) \\\\
+Mat\'{e}riau & FR4 (fibre de verre epoxy) \\\\
+Cuivre & 1 oz/ft$^2$ (35 $\mu$m) \\\\
+Finition & HASL (Hot Air Solder Leveling) \\\\
+\'{E}paisseur & 1,6 mm \\\\
+Fichiers fab. & Gerber RS-274X \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{description}
+\item[FR4] Mat\'{e}riau PCB le plus courant : stratifi\'{e} de fibre de verre et r\'{e}sine epoxy. Bonne isolation \'{e}lectrique.
+\item[HASL] Finition de surface par \'{e}tain-plomb d\'{e}pos\'{e} \`{a} l'air chaud sur les pads expos\'{e}s.
+\item[Via] Trou m\'{e}tallis\'{e} qui relie \'{e}lectriquement deux couches de cuivre diff\'{e}rentes.
+\item[Pad] Zone conductrice sur laquelle on soude un composant.
+\item[Piste (Trace)] Conducteur en cuivre reliant deux points du PCB.
+\item[Plan de masse] Zone de cuivre \'{e}tendue connect\'{e}e au GND. R\'{e}duit le bruit \'{e}lectromagn\'{e}tique.
+\item[Gerber] Format standard pour la fabrication PCB. Chaque couche (cuivre, masque, s\'{e}rigraphie) est d\'{e}crite dans un fichier Gerber s\'{e}par\'{e}.
+\item[DRC] Design Rule Check -- v\'{e}rification automatique des r\`{e}gles de conception avant envoi en fabrication.
+\end{description}
+\newpage
+\section{Firmware -- Programme C++ Arduino}
+Le firmware g\`{e}re la lecture des boutons, le contr\^{o}le du moteur en PWM, la lecture du capteur de position, et la sauvegarde FRAM via I2C.
+\begin{lstlisting}
+// Brochage
+const int enA     = 9;   // PWM - Vitesse moteur
+const int in1     = 11;  // Direction moteur
+const int in2     = 12;  // Direction moteur
+const int btnUp   = A3;  // Bouton UP
+const int btnDown = A2;  // Bouton DOWN
+const int flexPin = A1;  // Capteur Flex
+// Parametres capteur
+#define FLEX_MIN      50   // ADC position HAUTE
+#define FLEX_MAX      900  // ADC position BASSE
+#define FLEX_DEADBAND 5    // Tolerance arret
+int motor_speed = 200;     // PWM 0-255
+\end{lstlisting}
+\begin{description}
+\item[analogRead()] Lit la tension sur une pin analogique, retourne 0--1023.
+\item[analogWrite()] G\'{e}n\`{e}re un signal PWM. Valeur 0--255 = rapport cyclique 0--100\%.
+\item[Deadband] Zone morte autour de la cible. Si erreur $<$ deadband, moteur s'arr\^{e}te. \'{E}vite les oscillations.
+\item[Calibration] D\'{e}termination de FLEX\_MIN et FLEX\_MAX en d\'{e}pla\c{c}ant l'actionneur jusqu'\`{a} ses butes.
+\item[Wire.h] Biblioth\`{e}que Arduino I2C. \texttt{Wire.begin()} initialise le bus.
+\end{description}
+\newpage
+\section{Modifications \`{a} Apporter -- Int\'{e}gration Capteur Flex Johnson Electric}
+\subsection{Contexte}
+Suite \`{a} la r\'{e}union du 23 janvier, il a \'{e}t\'{e} d\'{e}cid\'{e} de remplacer le capteur HES par un \textbf{capteur Flex PCB r\'{e}sistif de Johnson Electric} afin de pr\'{e}parer la transition vers la carte 4W (pr\'{e}vue en avril).
+\subsection{Nouveau Connecteur : HIROSE FH52K-12(6)SA-1SH(99)}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Param\`{e}tre} & \textbf{Valeur} \\\\
+\midrule
+R\'{e}f\'{e}rence & FH52K-12(6)SA-1SH(99) \\\\
+Fabricant & HIROSE / HRS \\\\
+Type & Connecteur FPC/FFC (6 contacts) \\\\
+Pas (pitch) & 1 mm \\\\
+Largeur & 8,1 mm \\\\
+Montage & CMS (SMD) \\\\
+Statut & Achet\'{e} par Laurent GEORGES \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection{Remplacement de H4 dans le Sch\'{e}ma EasyEDA}
+Le connecteur \textbf{H4 actuel} (HDR-M-2.54 1x6) doit \^{e}tre remplac\'{e} par le connecteur HIROSE FPC 6 contacts. H4 servait aux boutons ; dans la nouvelle version, il sert au capteur Flex 6 broches.
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Pin H4} & \textbf{Signal H4} & \textbf{Pin HIROSE} & \textbf{Signal Flex} \\\\
+\midrule
+Pin 1 & +5V & Pin 1 & +5V alimentation capteur \\\\
+Pin 2 & GND & Pin 2 & GND capteur (masse 1) \\\\
+Pin 3 & B1 & Pin 3 & GND capteur (masse 2) \\\\
+Pin 4 & B2 (DOWN) & Pin 4 & Signal Track 2A (vers 220$\Omega$ $\to$ A1) \\\\
+Pin 5 & B3 & Pin 5 & Signal Track 2B ($\to$ GND) \\\\
+Pin 6 & B4 (UP) & Pin 6 & R\'{e}serv\'{e} (selon datasheet Johnson) \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection{Sp\'{e}cifications du Capteur Flex}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Param\`{e}tre} & \textbf{Valeur} \\\\
+\midrule
+Tension d'alimentation & 5V \\\\
+Type & R\'{e}sistif \\\\
+Broches & 6 (dont 2 GND) \\\\
+R\'{e}sistance/capteur & $\approx 15\,\Omega$ \\\\
+R\'{e}sistance/piste 100mm & $\approx 12\,\Omega$ \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection{Modifications du Firmware}
+\begin{lstlisting}
+// AVANT (capteur Hall)
+int sensorValue = digitalRead(HESPin);
+
+// APRES (capteur Flex resistif)
+#define FLEX_MIN 50
+#define FLEX_MAX 900
+#define FLEX_DEADBAND 5
+const int flexPin = A1;
+
+int readFlex() {
+  return analogRead(flexPin); // 0-1023
+}
+// Dans loop() :
+int pos = readFlex();
+if (pos >= FLEX_MAX - FLEX_DEADBAND) motor_stop();
+if (pos <= FLEX_MIN + FLEX_DEADBAND) motor_stop();
+\end{lstlisting}
+\subsection{R\'{e}sum\'{e} des T\^{a}ches}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{N\textsuperscript{o}} & \textbf{T\^{a}che} & \textbf{Responsable} \\\\
+\midrule
+1 & Obtenir pinout exact du Flex PCB (datasheet Johnson) & Paul Dyckes \\\\
+2 & Remplacer H4 par HIROSE FH52K dans EasyEDA & M. SELMANI \\\\
+3 & Mettre \`{a} jour le footprint PCB (pad 1mm FPC) & M. SELMANI \\\\
+4 & Ajouter r\'{e}sistance diviseur 220 $\Omega$ pour Flex & M. SELMANI \\\\
+5 & Valider le nouveau layout PCB CardV2 & M. SELMANI \\\\
+6 & G\'{e}n\'{e}rer fichiers Gerber et commander chez JLCPCB & M. SELMANI \\\\
+7 & Modifier firmware C++ (lecture analogique Flex) & M. SELMANI \\\\
+8 & Calibrer FLEX\_MIN et FLEX\_MAX sur capteur r\'{e}el & M. SELMANI \\\\
+9 & Valider fonctionnement et pr\'{e}parer carte 4W & L. GEORGES \\\\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{document}
