@@ -1,0 +1,46 @@
+.github/workflows/compile_latex.ymlname: Compile LaTeX to PDF
+
+# Declenche automatiquement quand le .tex est modifie
+on:
+  push:
+    paths:
+      - "Flex_PCB_Sensor_Migration/documentation_migration_capteur.tex"
+  workflow_dispatch:  # Permet le declenchement manuel
+
+permissions:
+  contents: write  # Necessaire pour committer le PDF genere
+
+jobs:
+  compile-pdf:
+    runs-on: ubuntu-latest
+    name: Compile LaTeX Document
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX to PDF
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: Flex_PCB_Sensor_Migration/documentation_migration_capteur.tex
+          latexmk_use_xelatex: false
+          latexmk_shell_escape: false
+          extra_system_packages: "py3-pygments"
+          args: >-
+            -pdf
+            -interaction=nonstopmode
+            -output-directory=Flex_PCB_Sensor_Migration
+
+      - name: Commit and push compiled PDF
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "[CI] Compile LaTeX -> PDF: documentation_migration_capteur.pdf"
+          file_pattern: "Flex_PCB_Sensor_Migration/documentation_migration_capteur.pdf"
+          commit_author: "GitHub Actions <actions@github.com>"
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation_migration_capteur
+          path: Flex_PCB_Sensor_Migration/documentation_migration_capteur.pdf
+          retention-days: 30
