@@ -1,0 +1,511 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{float}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{mdframed}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+
+\geometry{margin=2.5cm}
+
+\definecolor{codeblue}{rgb}{0.1,0.1,0.8}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{backcolor}{rgb}{0.95,0.95,0.95}
+
+\lstdefinestyle{cppstyle}{
+  backgroundcolor=\color{backcolor},
+  commentstyle=\color{codegreen},
+  keywordstyle=\color{codeblue},
+  numberstyle=\tiny\color{codegray},
+  stringstyle=\color{orange},
+  basicstyle=\ttfamily\footnotesize,
+  breakatwhitespace=false,
+  breaklines=true,
+  captionpos=b,
+  keepspaces=true,
+  numbers=left,
+  numbersep=5pt,
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  tabsize=2,
+  language=C++
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Projet PCB Carte 2W -- Migration Capteur}
+\lhead{Selmani Mohamed}
+\cfoot{\thepage}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=cyan,
+  pdftitle={Migration Capteur Flex PCB -- Carte 2W},
+  pdfauthor={Selmani Mohamed}
+}
+
+\title{
+  \vspace{-1cm}
+  \Large\textbf{Projet PCB Carte 2W}\\
+  \vspace{0.3cm}
+  \LARGE\textbf{Migration du Capteur de Position}\\
+  \vspace{0.3cm}
+  \large Remplacement HES (Effet Hall) $\rightarrow$ Flex PCB Resistif (Johnson Electric)\\
+  \vspace{0.3cm}
+  \normalsize Nouveau Connecteur FPC 6 broches -- Flex PCB Dedie
+}
+\author{Selmani Mohamed \\ Laurent Georges \\ Paul Dyckes}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% =============================================================
+\section{Contexte et Objectif du Projet}
+% =============================================================
+
+La carte 2W (deux voies) est une carte PCB dediee au pilotage d'un actionneur lineaire
+dans le cadre de l'application \textbf{AT C229}. Elle offre une interface simple a
+deux boutons (\textbf{UP} et \textbf{DOWN}) pour commander la montee et la descente
+de l'actionneur.
+
+\subsection{Historique de la carte}
+
+La version originale de la carte, developpee par Sohaib, utilisait un \textbf{capteur
+a effet Hall (HES)} pour detecter la position de l'actionneur. Ce type de capteur
+detecte la presence d'un champ magnetique pour produire un signal numerique.
+
+\subsection{Pourquoi changer de capteur ?}
+
+Le capteur HES est remplace par un \textbf{capteur Flex PCB resistif de Johnson
+Electric} pour les raisons suivantes :
+
+\begin{itemize}
+  \item Le capteur Flex PCB est directement integre dans un circuit souple (Flex PCB),
+        ce qui reduit l'encombrement mecanique.
+  \item La connexion se fait via un connecteur FPC/FFC normalise 6 broches (reference
+        \textbf{FH52K-12(6)SA-1SH(99)} de HIROSE/HRS), deja commande.
+  \item Le capteur Flex est resistif : sa resistance varie avec la deformation,
+        permettant une lecture analogique continue de la position.
+  \item Validation technique confirmee par Paul Dyckes : alimentation 5~V.
+\end{itemize}
+
+\begin{tcolorbox}[colback=blue!5,colframe=blue!50,title=Information Cle]
+La commande de 13 connecteurs \textbf{FH52K-12(6)SA-1SH(99)} a ete passee par
+Laurent Georges (Code commande : 4399219, Prix total : 49,02 EUR).
+\end{tcolorbox}
+
+% =============================================================
+\section{Description du Nouveau Capteur et du Connecteur}
+% =============================================================
+
+\subsection{Le capteur Flex PCB (Johnson Electric)}
+
+Le capteur Flex PCB est un circuit imprime souple (FPC -- Flexible Printed Circuit)
+comportant deux zones conductrices circulaires (\emph{pads}) correspondant aux
+directions \textbf{UP} et \textbf{DOWN}.
+
+\subsubsection{Principe de fonctionnement}
+
+Le capteur fonctionne comme un \textbf{interrupteur resistif} :
+
+\begin{itemize}
+  \item \textbf{Pas de contact (relache)} : aucun courant ne circule, $I = 0$~A.
+        Le capteur est ouvert (etat logique~0).
+  \item \textbf{Avec contact (appuye)} : le circuit est ferme via la resistance
+        interne du capteur. Un courant circule (etat logique~1).
+\end{itemize}
+
+Ce comportement est celui d'un \textbf{capteur numerique 0/1} (ou tout-ou-rien).
+
+\subsubsection{Analyse electrique theorique}
+
+Lorsque le capteur est en contact, le circuit equivalent est le suivant :
+
+\[
+  U_{\text{alim}} = 5~\text{V}, \quad R_{\text{capteur}} \approx 20~\Omega
+\]
+
+\[
+  I = \frac{U}{R} = \frac{5~\text{V}}{20~\Omega} = 0{,}25~\text{A}
+\]
+
+\begin{tcolorbox}[colback=yellow!10,colframe=orange!70,title=Remarque sur la resistance]
+La valeur de resistance $R \approx 20~\Omega$ est approximative. Elle correspond a la
+somme de la resistance de la piste Flex ($\approx 12~\Omega$ pour 100~mm) et de la
+resistance intrinseque du capteur ($\approx 15~\Omega$ selon les specifications Johnson
+Electric). En pratique, il faudra calibrer la lecture via le logiciel Arduino.
+\end{tcolorbox}
+
+\subsubsection{Tableau recapitulatif}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Etat} & \textbf{Contact} & \textbf{Courant} \\
+\midrule
+Relache (0) & Aucun & $I = 0$~A \\
+Appuye (1)  & Ferme & $I \approx 0{,}25$~A \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Le connecteur FPC/FFC -- FH52K-12(6)SA-1SH(99)}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parametre} & \textbf{Valeur} \\
+\midrule
+Reference fabricant & FH52K-12(6)SA-1SH(99) \\
+Fabricant           & HIROSE / HRS \\
+Type                & Connecteur carte FFC/FPC \\
+Nombre de contacts  & 6 (sur un corps 12P6C) \\
+Pas (pitch)         & 1~mm \\
+Largeur             & 8,1~mm \\
+Montage             & CMS (Surface Mount) \\
+Serie               & FH52 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Brochage du connecteur 6 broches}
+
+\begin{center}
+\begin{tabular}{cll}
+\toprule
+\textbf{Broche \#} & \textbf{Signal} & \textbf{Description} \\
+\midrule
+1 & GND  & Masse (reference commune) \\
+2 & DOWN & Signal capteur direction basse \\
+3 & DOWN & Signal capteur direction basse (double) \\
+4 & UP   & Signal capteur direction haute \\
+5 & UP   & Signal capteur direction haute (double) \\
+6 & GND  & Masse (reference commune) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{tcolorbox}[colback=green!5,colframe=green!50,title=Note sur le doublage des broches]
+Les signaux UP (broches 4 et 5) et DOWN (broches 2 et 3) sont doubles pour
+reduire la resistance de contact et ameliorer la fiabilite de la connexion sur
+le PCB flexible. Les masses (broches 1 et 6) encadrent les signaux pour minimiser
+les perturbations electromagnetiques.
+\end{tcolorbox}
+
+% =============================================================
+\section{Ce qui Change par Rapport a l'Ancienne Carte}
+% =============================================================
+
+\subsection{Ancienne carte : Capteur HES (Effet Hall)}
+
+L'ancien capteur HES (Hall Effect Sensor) fonctionnait par detection magnetique :
+\begin{itemize}
+  \item Signal numerique (tension digitale HIGH/LOW).
+  \item Connexion 3 fils : VCC, GND, Signal.
+  \item Lecture par interruption numerique sur Arduino.
+\end{itemize}
+
+\subsection{Nouvelle carte : Capteur Flex PCB resistif}
+
+\begin{center}
+\begin{tabular}{p{4cm}p{5cm}p{5cm}}
+\toprule
+\textbf{Aspect} & \textbf{Ancien (HES)} & \textbf{Nouveau (Flex PCB)} \\
+\midrule
+Type de signal  & Numerique (0/5~V)    & Resistif / analogique \\
+Nombre broches  & 3 (VCC, GND, SIG)   & 6 (2xGND, 2xUP, 2xDOWN) \\
+Connecteur      & Standard DIP/JST     & FPC 6 broches FH52K \\
+Lecture uC      & Interruption         & analogRead() sur A1 \\
+Diviseur tension & Non requis          & Oui (220 Ohm en serie) \\
+PCB souple      & Non                  & Oui (Flex PCB dedie) \\
+Calibration     & Non                  & Oui (FLEX\_MIN/FLEX\_MAX) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Modifications du schema electronique}
+
+\begin{enumerate}
+  \item \textbf{Supprimer} le connecteur du capteur HES (3 broches) et ses connexions.
+  \item \textbf{Ajouter} le composant connecteur FPC 6 broches (FH52K-12(6)SA-1SH(99)).
+  \item \textbf{Cablez} les broches selon la table de brochage (section 2.3).
+  \item \textbf{Ajouter} une resistance de pull-down de 220~$\Omega$ sur les signaux
+        UP et DOWN (vers GND) pour definir un etat bas quand le capteur est ouvert.
+  \item \textbf{Connecter} les signaux UP et DOWN vers A3 et A2 de l'Arduino.
+\end{enumerate}
+
+% =============================================================
+\section{Modifications du Firmware Arduino}
+% =============================================================
+
+\subsection{Nouveau programme (Flex PCB -- 0/1 numerique)}
+
+\begin{lstlisting}[style=cppstyle, caption={Lecture Flex PCB (numerique 0/1)}]
+// Nouvelle version -- capteur Flex PCB resistif
+// Principe : pas de contact => I=0A (etat 0), contact => I=U/R~0.25A (etat 1)
+// Brochage : UP -> A3, DOWN -> A2
+// Pull-down externe 220 Ohm assure l'etat bas au repos
+
+const int btnUp   = A3;   // Broche UP capteur Flex (broches 4+5)
+const int btnDown = A2;   // Broche DOWN capteur Flex (broches 2+3)
+
+void setup() {
+  // Pull-down externe (220 Ohm) -> pas de INPUT_PULLUP
+  pinMode(btnUp,   INPUT);
+  pinMode(btnDown, INPUT);
+}
+
+void loop() {
+  int stUp   = digitalRead(btnUp);    // 0 = relache, 1 = appuye
+  int stDown = digitalRead(btnDown);  // 0 = relache, 1 = appuye
+
+  if (stUp == HIGH && stDown == LOW) {
+    motor_up();    // Contact UP detecte -> monter
+  } else if (stDown == HIGH && stUp == LOW) {
+    motor_down();  // Contact DOWN detecte -> descendre
+  } else {
+    motor_stop();  // Aucun contact -> arret
+  }
+}
+\end{lstlisting}
+
+\subsection{Calibration du capteur analogique}
+
+\begin{lstlisting}[style=cppstyle, caption={Parametres de calibration}]
+#define FLEX_MIN     50   // Valeur ADC position haute (a calibrer)
+#define FLEX_MAX    900   // Valeur ADC position basse (a calibrer)
+#define FLEX_DEADBAND 5   // Tolerance arret (+/- 5 unites ADC)
+int motor_speed = 200;    // Vitesse PWM (0-255)
+// Broche lecture analogique position (diviseur 220 Ohm / Sensor)
+const int flexPin = A1;
+\end{lstlisting}
+
+% =============================================================
+\section{Guide EasyEDA -- Modification Pas a Pas}
+% =============================================================
+
+\subsection{Etape 1 -- Ouvrir le projet EasyEDA}
+
+\begin{enumerate}
+  \item Aller sur \url{https://easyeda.com} et se connecter.
+  \item Cliquer sur \textbf{My Projects} dans le menu gauche.
+  \item Localiser le projet \textbf{CardV2} et l'ouvrir.
+  \item Ou importer via \textbf{File > Import > EasyEDA JSON} et selectionner
+        \texttt{SCH\_CardV2\_copy\_2025-09-15\_BACKUP.json}.
+\end{enumerate}
+
+\subsection{Etape 2 -- Supprimer l'ancien capteur HES}
+
+\begin{enumerate}
+  \item Dans l'onglet Schematic, localiser le composant capteur HES (3 broches).
+  \item Cliquer sur le composant pour le selectionner (contour vert).
+  \item Appuyer sur \textbf{Delete} pour supprimer le composant.
+  \item Supprimer egalement les fils (wires) connectes : clic sur le fil,
+        puis \textbf{Delete}.
+  \item Repeter pour toutes les connexions liees au capteur HES.
+\end{enumerate}
+
+\subsection{Etape 3 -- Ajouter le connecteur FPC 6 broches}
+
+\begin{enumerate}
+  \item Cliquer sur \textbf{Place > Part} (raccourci clavier : \textbf{P}).
+  \item Dans la barre de recherche de la bibliotheque, taper :
+        \texttt{FH52K} ou \texttt{FPC 6P 1mm}.
+  \item Si le composant n'est pas dans la bibliotheque standard EasyEDA :
+    \begin{itemize}
+      \item Aller sur \url{https://lcsc.com}, rechercher \texttt{FH52K-12(6)SA-1SH(99)}.
+      \item Cliquer sur \textbf{EasyEDA Model} pour telecharger le modele.
+      \item Dans EasyEDA : \textbf{File > Import} et charger le fichier JSON du composant.
+      \item Le composant sera disponible dans \textbf{My Libraries}.
+    \end{itemize}
+  \item Placer le connecteur sur le schema et le nommer \texttt{J\_FLEX}.
+  \item Renseigner les proprietes : Manufacturer = HIROSE, MPN = FH52K-12(6)SA-1SH(99).
+\end{enumerate}
+
+\subsection{Etape 4 -- Creer manuellement le symbole si besoin}
+
+\begin{enumerate}
+  \item Aller dans \textbf{Tools > Symbol Wizard} ou \textbf{File > New > Symbol}.
+  \item Creer un composant avec 6 pins :
+    \begin{center}
+    \begin{tabular}{cll}
+    \toprule
+    Pin & Nom    & Type  \\
+    \midrule
+    1   & GND    & Power \\
+    2   & DOWN\_A & Input \\
+    3   & DOWN\_B & Input \\
+    4   & UP\_A   & Input \\
+    5   & UP\_B   & Input \\
+    6   & GND    & Power \\
+    \bottomrule
+    \end{tabular}
+    \end{center}
+  \item Sauvegarder dans \textbf{My Libraries} sous le nom \texttt{FH52K-6P}.
+\end{enumerate}
+
+\subsection{Etape 5 -- Cablage du connecteur dans le schema}
+
+\begin{enumerate}
+  \item Utiliser l'outil \textbf{Wire} (raccourci : \textbf{W}).
+  \item Connecter les broches :
+    \begin{itemize}
+      \item Broches 1 et 6 $\rightarrow$ Net \texttt{GND} (masse).
+      \item Broches 2 et 3 (DOWN) $\rightarrow$ Net \texttt{DOWN\_SIG}.
+      \item Broches 4 et 5 (UP) $\rightarrow$ Net \texttt{UP\_SIG}.
+    \end{itemize}
+  \item Utiliser \textbf{Place > Net Label} pour nommer les nets.
+  \item Ajouter deux resistances 220~$\Omega$ :
+    \begin{itemize}
+      \item \texttt{R\_UP} : entre \texttt{UP\_SIG} et GND (pull-down).
+      \item \texttt{R\_DOWN} : entre \texttt{DOWN\_SIG} et GND (pull-down).
+    \end{itemize}
+  \item Relier \texttt{UP\_SIG} vers pin A3 de l'Arduino (net \texttt{BTN\_UP}).
+  \item Relier \texttt{DOWN\_SIG} vers pin A2 de l'Arduino (net \texttt{BTN\_DOWN}).
+\end{enumerate}
+
+\subsection{Etape 6 -- Mettre a jour le PCB}
+
+\begin{enumerate}
+  \item Dans le schema, cliquer sur \textbf{Design > Update PCB}.
+  \item EasyEDA synchronise les modifications schema -> PCB.
+  \item Les nouveaux composants apparaissent hors du contour de carte.
+  \item Deplacer le connecteur FPC : le placer \textbf{en bord de carte} pour
+        faciliter l'insertion du cable flexible.
+  \item Caracteristiques de l'empreinte FH52K :
+    \begin{itemize}
+      \item 6 pads + 2 pads de fixation mecanique.
+      \item Pitch : 1~mm.
+      \item Montage CMS (SMD), cote Top.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Etape 7 -- Routage PCB}
+
+\begin{enumerate}
+  \item Outil \textbf{Route > Route Single Track} (raccourci : \textbf{X}).
+  \item Largeur de piste : \textbf{0,3~mm minimum} pour 0,25~A.
+  \item Ordre de routage recommande :
+    \begin{enumerate}[label=\alph*.]
+      \item GND (broches 1+6) vers le plan de masse (GND polygon).
+      \item DOWN (broches 2+3) vers R\_DOWN, puis vers Arduino A2.
+      \item UP (broches 4+5) vers R\_UP, puis vers Arduino A3.
+    \end{enumerate}
+  \item Eviter les angles a 90 deg, preferer les angles a 45 deg.
+  \item Executer \textbf{Design > Design Rule Check (DRC)} pour valider.
+  \item Generer les fichiers Gerber : \textbf{Fabrication > Generate Gerber}.
+\end{enumerate}
+
+% =============================================================
+\section{Scripts de Generation -- KiCad Python}
+% =============================================================
+
+\subsection{Approche retenue : KiCad via script Python}
+
+Plutot qu'Altium (logiciel proprietaire couteux), nous utilisons \textbf{KiCad 7/8}
+qui est open-source et dispose d'une API Python complete.
+
+Les scripts fournis dans le sous-dossier \texttt{scripts/} permettent de :
+
+\begin{itemize}
+  \item Convertir les fichiers JSON EasyEDA vers le format KiCad.
+  \item Generer le schema KiCad (\texttt{.kicad\_sch}).
+  \item Generer le PCB KiCad (\texttt{.kicad\_pcb}) avec les empreintes.
+  \item Creer le composant FPC FH52K au format KiCad.
+\end{itemize}
+
+\subsection{Prerequis}
+
+\begin{itemize}
+  \item KiCad 7.x ou 8.x installe (\url{https://www.kicad.org/download/}).
+  \item Python 3.8+ avec la bibliotheque \texttt{kicad-python} ou \texttt{pcbnew}.
+  \item Fichiers JSON EasyEDA : \texttt{SCH\_CardV2*.json} et \texttt{PCB\_PCB\_CardV2*.json}.
+\end{itemize}
+
+\subsection{Utilisation des scripts}
+
+\begin{lstlisting}[language=bash,caption={Utilisation des scripts Python}]
+# 1. Installer les dependances
+pip install easyeda2kicad
+
+# 2. Convertir le schema EasyEDA -> KiCad
+python scripts/easyeda_to_kicad_schematic.py \
+  --input SCH_CardV2_copy_2025-09-15_BACKUP.json \
+  --output Flex_PCB_Sensor_Migration/output/CardV2_new.kicad_sch
+
+# 3. Convertir le PCB EasyEDA -> KiCad
+python scripts/easyeda_to_kicad_pcb.py \
+  --input PCB_PCB_CardV2_2_2025-09-15.json \
+  --output Flex_PCB_Sensor_Migration/output/CardV2_new.kicad_pcb
+
+# 4. Generer le composant FPC FH52K
+python scripts/generate_kicad_fpc_component.py \
+  --output Flex_PCB_Sensor_Migration/output/FH52K_6P.kicad_sym
+\end{lstlisting}
+
+% =============================================================
+\section{Resume des Fichiers du Dossier}
+% =============================================================
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Fichier} & \textbf{Description} \\
+\midrule
+\texttt{documentation\_migration\_capteur.tex} & Ce document (source LaTeX) \\
+\texttt{documentation\_migration\_capteur.pdf} & Version PDF a compiler \\
+\texttt{scripts/easyeda\_to\_kicad\_schematic.py} & Convertisseur SCH JSON -> KiCad \\
+\texttt{scripts/easyeda\_to\_kicad\_pcb.py} & Convertisseur PCB JSON -> KiCad \\
+\texttt{scripts/generate\_kicad\_fpc\_component.py} & Generateur composant FPC \\
+\texttt{scripts/README\_scripts.md} & Guide d'utilisation \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% =============================================================
+\section*{Annexe : Specifications Connecteur FH52K}
+% =============================================================
+\addcontentsline{toc}{section}{Annexe}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parametre} & \textbf{Valeur} \\
+\midrule
+Tension max.         & 50~V AC/DC \\
+Courant max./contact & 0,5~A \\
+Resistance contact   & $< 50~\mathrm{m}\Omega$ \\
+Temperature          & $-40$ a $+85$~deg C \\
+Insertions garanties & 30 cycles \\
+Fixation cable       & ZIF (Zero Insertion Force) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{1cm}
+\begin{tcolorbox}[colback=gray!10,colframe=gray!50,title=Equipe Projet]
+\textbf{Selmani Mohamed} -- Conception PCB \& Firmware\\
+\textbf{Laurent Georges} -- Responsable projet, achat composants\\
+\textbf{Paul Dyckes} -- Validation technique capteur Johnson Electric
+\end{tcolorbox}
+
+\end{document}
